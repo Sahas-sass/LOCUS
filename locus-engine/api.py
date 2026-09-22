@@ -12,7 +12,7 @@ app = FastAPI(title="LOCUS Neuro-Symbolic Engine")
 # Allow Next.js frontend to communicate with this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +83,20 @@ def mitigate_hijack(prefix: str):
         print(f"[MITIGATION FAILED] {e.stderr}")
         return False
 
+# Global state for automated defense
+AUTO_MITIGATION = True
+
+class MitigationToggle(BaseModel):
+    enabled: bool
+
+@app.post("/api/mitigation/toggle")
+def toggle_mitigation(request: MitigationToggle):
+    global AUTO_MITIGATION
+    AUTO_MITIGATION = request.enabled
+    state_str = "ENABLED" if AUTO_MITIGATION else "PAUSED"
+    print(f"\n[SYSTEM] Automated Mitigation is now {state_str}\n")
+    return {"status": "success", "auto_mitigation": AUTO_MITIGATION}
+
 @app.get("/")
 def health_check():
     return {"status": "LOCUS Engine is running"}
@@ -107,7 +121,8 @@ async def analyze_route(update: BGPUpdate):
 
     if threat_status:
         print(f"[ALERT] Topologically Invalid Route! Prefixes: {len(update.prefixes)} | Path: {update.as_path}")
-        if update.prefixes and "10.99" in update.prefixes[0]: 
+        # Only trigger Docker if the kill switch is armed
+        if AUTO_MITIGATION and update.prefixes and "10.99" in update.prefixes[0]: 
             mitigated = mitigate_hijack(update.prefixes[0])
     else:
         print(f"[OK] Route Verified - {len(update.prefixes)} Prefixes | Path: {update.as_path}")
