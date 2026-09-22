@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --background: #111113;
+  --surface: #1a1a1c;
+  --surface-hover: #232325;
+  --primary-neon: #a3e635;
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text-main);
+}
