@@ -1,4 +1,6 @@
 import { Bell, Globe, ArrowUpRight, ShieldCheck, Database, Activity } from "lucide-react";
+import RouteDistributionChart from "@/components/RouteDistributionChart";
+import TelemetryVelocityChart from "@/components/TelemetryVelocityChart";
 
 export default function Home() {
   return (
@@ -23,7 +25,6 @@ export default function Home() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4 mb-8">
-        {/* Card 1: Routes Analyzed */}
         <div className="bg-(--surface) p-5 rounded-xl border border-[#2a2a2c]">
           <p className="text-(--text-muted) text-sm mb-2">Routes Analyzed</p>
           <h2 className="text-3xl font-bold text-(--text-main) mb-2">3,131,021</h2>
@@ -33,7 +34,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Card 2: Threats Mitigated */}
         <div className="bg-(--surface) p-5 rounded-xl border border-[#2a2a2c]">
           <p className="text-(--text-muted) text-sm mb-2">Threats Mitigated</p>
           <h2 className="text-3xl font-bold text-(--text-main) mb-2">1,511</h2>
@@ -43,7 +43,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Card 3: Graph Nodes */}
         <div className="bg-(--surface) p-5 rounded-xl border border-[#2a2a2c]">
           <p className="text-(--text-muted) text-sm mb-2">Graph Nodes (ASNs)</p>
           <h2 className="text-3xl font-bold text-(--text-main) mb-2">74,201</h2>
@@ -53,7 +52,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Card 4: Uptime */}
         <div className="bg-(--surface) p-5 rounded-xl border border-[#2a2a2c]">
           <p className="text-(--text-muted) text-sm mb-2">Engine Uptime</p>
           <h2 className="text-3xl font-bold text-(--text-main) mb-2">99.9%</h2>
@@ -62,6 +60,12 @@ export default function Home() {
             <span>System Nominal</span>
           </div>
         </div>
+      </div>
+
+      {/* Middle Row: Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <RouteDistributionChart />
+        <TelemetryVelocityChart />
       </div>
     </div>
   );
