@@ -6,19 +6,33 @@ import { useState } from "react";
 export default function MitigationControlCard() {
   const [isAutomated, setIsAutomated] = useState(true);
 
+  const handleToggle = async () => {
+    const newState = !isAutomated;
+    setIsAutomated(newState); // Optimistic UI update
+    
+    try {
+      await fetch("http://localhost:8000/api/mitigation/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newState })
+      });
+    } catch (error) {
+      console.error("Failed to toggle engine state", error);
+      setIsAutomated(!newState); // Revert if API fails
+    }
+  };
+
   return (
     <div className="bg-linear-to-b from-[#192415] to-(--surface) p-6 rounded-xl border border-(--primary-neon)/20 flex flex-col justify-between w-full lg:w-80 shrink-0">
       <div>
-        {/* Card Header Badge */}
         <div className="flex justify-between items-center mb-4">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-(--primary-neon)/20 text-(--primary-neon) text-xs font-semibold">
-            <Radio size={12} className="animate-pulse" />
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isAutomated ? 'bg-(--primary-neon)/20 text-(--primary-neon)' : 'bg-amber-500/20 text-amber-500'}`}>
+            <Radio size={12} className={isAutomated ? "animate-pulse" : ""} />
             Router Gateway
           </span>
           <span className="text-[11px] text-(--text-muted)">vtysh connected</span>
         </div>
 
-        {/* Status Callout */}
         <div className="mb-4">
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-(--text-main)">AS 100</span>
@@ -29,7 +43,6 @@ export default function MitigationControlCard() {
           </p>
         </div>
 
-        {/* Specifications */}
         <div className="space-y-2 py-3 border-y border-[#2a2a2c]/60 text-xs">
           <div className="flex justify-between">
             <span className="text-(--text-muted) flex items-center gap-1.5">
@@ -47,18 +60,19 @@ export default function MitigationControlCard() {
             <span className="text-(--text-muted) flex items-center gap-1.5">
               <ShieldCheck size={13} /> Automated Defense
             </span>
-            <span className="text-(--primary-neon) font-semibold">
+            <span className={`font-semibold ${isAutomated ? 'text-(--primary-neon)' : 'text-amber-500'}`}>
               {isAutomated ? "ENABLED" : "PAUSED"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="mt-6 space-y-2">
         <button
-          onClick={() => setIsAutomated(!isAutomated)}
-          className="w-full py-2.5 px-4 rounded-lg bg-(--primary-neon) text-black font-semibold text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          onClick={handleToggle}
+          className={`w-full py-2.5 px-4 rounded-lg font-semibold text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-2 ${
+            isAutomated ? 'bg-(--primary-neon) text-black' : 'bg-amber-500 text-black'
+          }`}
         >
           {isAutomated ? "Pause Auto-Mitigation" : "Arm Auto-Mitigation"}
         </button>
