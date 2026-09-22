@@ -1,6 +1,5 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Bell, Globe, ArrowUpRight, ShieldCheck, Database, Activity } from "lucide-react";
 import RouteDistributionChart from "@/components/RouteDistributionChart";
 import TelemetryVelocityChart from "@/components/TelemetryVelocityChart";
@@ -8,52 +7,77 @@ import IncidentTable, { Incident } from "@/components/IncidentTable";
 import MitigationControlCard from "@/components/MitigationControlCard";
 
 export default function Home() {
+  // Global State for the Dashboard Top Cards
   const [stats, setStats] = useState({
     analyzed: 3131021,
     mitigated: 1511,
+    prepended: 420100 // baseline static for donut visualization
   });
   
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  
+  // Rolling buffer for the Area Chart
+  const updatesInCurrentInterval = useRef(0);
+  const [currentRate, setCurrentRate] = useState(0);
+  const [velocityData, setVelocityData] = useState(
+    Array.from({ length: 7 }, (_, i) => ({ time: `-${14 - (i*2)}s`, updates: 0 }))
+  );
 
   useEffect(() => {
-    // Establish WebSocket connection to FastAPI
-    const ws = new WebSocket("ws://localhost:8000/ws");
-
+    // Establish WebSocket Connection
+    const ws = new WebSocket("ws://127.0.0.1:8000/ws");
     ws.onopen = () => setIsConnected(true);
     ws.onclose = () => setIsConnected(false);
 
     ws.onmessage = (event) => {
+      updatesInCurrentInterval.current += 1;
       const data = JSON.parse(event.data);
 
       if (data.type === "route_verified") {
-        setStats((prev) => ({ ...prev, analyzed: prev.analyzed + 1 }));
+        setStats(prev => ({ ...prev, analyzed: prev.analyzed + 1 }));
       } 
       else if (data.type === "hijack_alert") {
-        setStats((prev) => ({
+        setStats(prev => ({
+          ...prev,
           analyzed: prev.analyzed + 1,
           mitigated: data.mitigated ? prev.mitigated + 1 : prev.mitigated,
         }));
 
-        const newIncident: Incident = {
+        setIncidents(prev => [{
           id: `INC-${Math.floor(Math.random() * 10000)}`,
           prefix: data.prefix,
           asPath: data.as_path,
           detectionType: "Topology Violation",
-          status: data.mitigated ? "Mitigated" : "Investigating",
+          status: (data.mitigated ? "Mitigated" : "Investigating") as "Mitigated" | "Investigating",
           timestamp: data.timestamp,
-        };
-
-        // Prepend new incident and keep only the latest 6
-        setIncidents((prev) => [newIncident, ...prev].slice(0, 6));
+        }, ...prev].slice(0, 6));
       }
     };
 
-    return () => ws.close();
+    // Calculate messages/sec every 2 seconds and shift the graph
+    const interval = setInterval(() => {
+      const msgs = updatesInCurrentInterval.current;
+      setCurrentRate(Math.round(msgs / 2));
+      
+      setVelocityData(prev => {
+        const timeLabel = new Date().getSeconds() + "s";
+        return [...prev.slice(1), { time: timeLabel, updates: msgs }];
+      });
+      
+      updatesInCurrentInterval.current = 0;
+    }, 2000);
+
+    return () => {
+      ws.close();
+      clearInterval(interval);
+    };
   }, []);
 
   return (
     <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
+      
+      {/* Header with Live Connection Status */}
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold text-(--text-main)">Overview</h1>
@@ -79,6 +103,7 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Row 1: Key Metrics (Wired to Live State) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-(--surface) p-5 rounded-xl border border-[#2a2a2c]">
           <p className="text-(--text-muted) text-sm mb-2">Routes Analyzed</p>
@@ -121,15 +146,24 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Row 2: Charts (Wired to Live State) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RouteDistributionChart />
-        <TelemetryVelocityChart />
+        <RouteDistributionChart 
+          stats={{ 
+            verified: stats.analyzed - stats.mitigated - stats.prepended, 
+            hijacked: stats.mitigated, 
+            prepended: stats.prepended 
+          }} 
+        />
+        <TelemetryVelocityChart data={velocityData} currentRate={currentRate} />
       </div>
 
+      {/* Row 3: Incidents & Router Mitigation Control */}
       <div className="flex flex-col lg:flex-row gap-6">
         <IncidentTable incidents={incidents} />
         <MitigationControlCard />
       </div>
+      
     </div>
   );
 }
