@@ -10,17 +10,18 @@ import {
 } from "recharts";
 import { Zap } from "lucide-react";
 
-const streamData = [
-  { time: "00s", updates: 320 },
-  { time: "10s", updates: 450 },
-  { time: "20s", updates: 410 },
-  { time: "30s", updates: 680 },
-  { time: "40s", updates: 590 },
-  { time: "50s", updates: 840 },
-  { time: "60s", updates: 760 },
-];
+interface VelocityData {
+  time: string;
+  updates: number;
+}
 
-export default function TelemetryVelocityChart() {
+export default function TelemetryVelocityChart({
+  data,
+  currentRate,
+}: {
+  data: VelocityData[];
+  currentRate: number;
+}) {
   return (
     <div className="bg-(--surface) p-6 rounded-xl border border-[#2a2a2c] flex flex-col justify-between">
       <div className="flex justify-between items-start mb-2">
@@ -35,13 +36,13 @@ export default function TelemetryVelocityChart() {
       </div>
 
       <div className="my-2">
-        <span className="text-3xl font-bold text-(--text-main)">760</span>
+        <span className="text-3xl font-bold text-(--text-main)">{currentRate}</span>
         <span className="text-xs text-(--text-muted) ml-2">msg/s</span>
       </div>
 
       <div className="h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={streamData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
             <defs>
               <linearGradient id="neonGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#a3e635" stopOpacity={0.4} />
