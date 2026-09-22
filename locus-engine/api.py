@@ -1,10 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from neo4j import GraphDatabase
 import subprocess
+import json
+import datetime
 
 app = FastAPI(title="LOCUS Neuro-Symbolic Engine")
+
+# Allow Next.js frontend to communicate with this API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 NEO4J_URI = "neo4j://localhost:7687"
 NEO4J_USER = "neo4j"
@@ -14,6 +26,27 @@ driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 class BGPUpdate(BaseModel):
     prefixes: List[str]
     as_path: List[int]
+
+# WebSocket Manager to broadcast data to the frontend
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except RuntimeError:
+                pass # Ignore if the socket closed mid-broadcast
+
+manager = ConnectionManager()
 
 @app.on_event("shutdown")
 def close_driver():
@@ -41,32 +74,54 @@ def verify_path_in_graph(tx, path: List[int]):
 
 def mitigate_hijack(prefix: str):
     print(f"\n[MITIGATION TRIGGERED] Deploying counter-measures for {prefix} via Router A...")
-    # Execute the longest-prefix match counter-measure against the Docker container
     command = 'docker exec router-a vtysh -c "configure terminal" -c "ip route 10.0.0.0/26 blackhole" -c "ip route 10.0.0.64/26 blackhole" -c "router bgp 100" -c "network 10.0.0.0/26" -c "network 10.0.0.64/26" -c "end" -c "write"'
     try:
         subprocess.run(command, shell=True, check=True, capture_output=True)
         print("[MITIGATION SUCCESS] Counter-announcement deployed.\n")
+        return True
     except subprocess.CalledProcessError as e:
         print(f"[MITIGATION FAILED] {e.stderr}")
+        return False
 
 @app.get("/")
 def health_check():
     return {"status": "LOCUS Engine is running"}
 
+# The new WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text() # Keep connection alive
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 @app.post("/analyze")
-def analyze_route(update: BGPUpdate):
+async def analyze_route(update: BGPUpdate):
     with driver.session() as session:
         is_feasible = session.execute_read(verify_path_in_graph, update.as_path)
-
+    
     threat_status = not is_feasible
+    mitigated = False
 
     if threat_status:
         print(f"[ALERT] Topologically Invalid Route! Prefixes: {len(update.prefixes)} | Path: {update.as_path}")
-        # Trigger the automated response. (Filtering for our test prefix to avoid spamming the router)
         if update.prefixes and "10.99" in update.prefixes[0]: 
-            mitigate_hijack(update.prefixes[0])
+            mitigated = mitigate_hijack(update.prefixes[0])
     else:
         print(f"[OK] Route Verified - {len(update.prefixes)} Prefixes | Path: {update.as_path}")
+        
+    # Broadcast the live event to the Next.js dashboard
+    if update.prefixes:
+        event_data = {
+            "type": "hijack_alert" if threat_status else "route_verified",
+            "prefix": update.prefixes[0],
+            "as_path": str(update.as_path),
+            "mitigated": mitigated,
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
+        }
+        await manager.broadcast(event_data)
 
     return {
         "status": "analyzed", 
