@@ -3,13 +3,22 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { MoreVertical } from "lucide-react";
 
-const data = [
-  { name: "Verified BGP Paths", value: 78, color: "#a3e635" },
-  { name: "AS-Prepending", value: 16, color: "#4ade80" },
-  { name: "Flagged Hijacks", value: 6, color: "#ef4444" },
-];
+interface Stats {
+  verified: number;
+  hijacked: number;
+  prepended: number;
+}
 
-export default function RouteDistributionChart() {
+export default function RouteDistributionChart({ stats }: { stats: Stats }) {
+  const total = stats.verified + stats.hijacked + stats.prepended || 1;
+  const vPct = Math.round((stats.verified / total) * 100);
+
+  const data = [
+    { name: "Verified BGP Paths", value: vPct, color: "#a3e635" },
+    { name: "AS-Prepending", value: Math.round((stats.prepended / total) * 100), color: "#4ade80" },
+    { name: "Flagged Hijacks", value: Math.round((stats.hijacked / total) * 100), color: "#ef4444" },
+  ];
+
   return (
     <div className="bg-(--surface) p-6 rounded-xl border border-[#2a2a2c] flex flex-col justify-between">
       <div className="flex justify-between items-center mb-4">
@@ -52,7 +61,7 @@ export default function RouteDistributionChart() {
 
         {/* Center Indicator */}
         <div className="absolute flex flex-col items-center pointer-events-none">
-          <span className="text-2xl font-bold text-(--text-main)">94%</span>
+          <span className="text-2xl font-bold text-(--text-main)">{vPct}%</span>
           <span className="text-[11px] text-(--text-muted)">Valid Paths</span>
         </div>
       </div>
