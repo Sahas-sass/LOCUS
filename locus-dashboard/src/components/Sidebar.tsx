@@ -1,6 +1,19 @@
-import { LayoutDashboard, ShieldAlert, Activity, Network, Settings, Search } from 'lucide-react';
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, ShieldAlert, Activity, Network, Settings, Search } from "lucide-react";
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
+  const navItems = [
+    { name: "Overview", path: "/", icon: LayoutDashboard },
+    { name: "Active Threats", path: "/active-threats", icon: ShieldAlert },
+    { name: "Graph Topology", path: "/topology", icon: Network },
+    { name: "Telemetry", path: "/telemetry", icon: Activity },
+  ];
+
   return (
     <aside className="w-64 bg-(--surface) h-screen border-r border-[#2a2a2c] flex flex-col shrink-0">
       <div className="p-6 flex items-center gap-3">
@@ -20,27 +33,32 @@ export default function Sidebar() {
       <div className="flex-1 px-4 space-y-1">
         <p className="px-2 text-xs font-semibold text-(--text-muted) mb-3 mt-2 tracking-wider">DASHBOARDS</p>
         
-        <a href="#" className="flex items-center gap-3 px-3 py-2 bg-(--primary-neon) text-black rounded-lg font-medium text-sm">
-          <LayoutDashboard size={18} /> Overview
-        </a>
-        
-        <a href="#" className="flex items-center gap-3 px-3 py-2 text-(--text-muted) hover:text-(--text-main) rounded-lg font-medium text-sm transition-colors">
-          <ShieldAlert size={18} /> Active Threats
-        </a>
-        
-        <a href="#" className="flex items-center gap-3 px-3 py-2 text-(--text-muted) hover:text-(--text-main) rounded-lg font-medium text-sm transition-colors">
-          <Network size={18} /> Graph Topology
-        </a>
-        
-        <a href="#" className="flex items-center gap-3 px-3 py-2 text-(--text-muted) hover:text-(--text-main) rounded-lg font-medium text-sm transition-colors">
-          <Activity size={18} /> Telemetry
-        </a>
+        {navItems.map((item) => {
+          const isActive = pathname === item.path;
+          const Icon = item.icon;
+          return (
+            <Link 
+              key={item.path} 
+              href={item.path} 
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                isActive ? "bg-(--primary-neon) text-black" : "text-(--text-muted) hover:text-(--text-main)"
+              }`}
+            >
+              <Icon size={18} /> {item.name}
+            </Link>
+          );
+        })}
 
         <p className="px-2 text-xs font-semibold text-(--text-muted) mb-3 mt-8 tracking-wider">SETTINGS</p>
         
-        <a href="#" className="flex items-center gap-3 px-3 py-2 text-(--text-muted) hover:text-(--text-main) rounded-lg font-medium text-sm transition-colors">
+        <Link 
+          href="/settings" 
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+            pathname === "/settings" ? "bg-(--primary-neon) text-black" : "text-(--text-muted) hover:text-(--text-main)"
+          }`}
+        >
           <Settings size={18} /> Configuration
-        </a>
+        </Link>
       </div>
     </aside>
   );
