@@ -6,10 +6,20 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
+
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		MaxConnsPerHost:     50,
+		MaxIdleConns:        50,
+		MaxIdleConnsPerHost: 50,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
 
 type RisMessage struct {
 	Type string  `json:"type"`
@@ -97,17 +107,21 @@ func main() {
 						}
 						jsonData, _ := json.Marshal(payload)
 
-						// Use a goroutine, but safely handle and close the response
+						// Use the shared client and release the response body for connection reuse.
 						go func(data []byte) {
-							resp, err := http.Post("http://localhost:8000/analyze", "application/json", bytes.NewBuffer(data))
-							if err == nil {
-								resp.Body.Close()
+							resp, err := httpClient.Post("http://127.0.0.1:8000/analyze", "application/json", bytes.NewBuffer(data))
+							if err != nil {
+								log.Println("API connection error:", err)
+								return
 							}
+							resp.Body.Close()
 						}(jsonData)
 					}
 				}
 				log.Printf("Mapped and Sent AS-Path: %v\n", msg.Data.Path)
 			}
+
+			time.Sleep(5 * time.Millisecond)
 		}
 	}()
 
