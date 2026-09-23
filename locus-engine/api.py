@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-NEO4J_URI = "neo4j://localhost:7687"
+NEO4J_URI = "bolt://127.0.0.1:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "locus-admin"
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
