@@ -120,8 +120,6 @@ func main() {
 				}
 				log.Printf("Mapped and Sent AS-Path: %v\n", msg.Data.Path)
 			}
-
-			time.Sleep(5 * time.Millisecond)
 		}
 	}()
 
@@ -135,7 +133,8 @@ func main() {
 		select {
 		case bgpStream <- message:
 		default:
-			log.Println("Warning: Buffer full, dropping BGP update")
+			// Buffer is full. Silently drop the packet to avoid terminal spam.
+			// log.Println("Warning: Buffer full, dropping BGP update")
 		}
 	}
 }
