@@ -3,11 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from neo4j import GraphDatabase
+from ml_engine import BGPAnomalyDetector
 import subprocess
 import json
 import datetime
+import time
+from collections import deque
 
 app = FastAPI(title="LOCUS Neuro-Symbolic Engine")
+
+# Sliding-window state for prefix update velocity
+prefix_history = {}
+WINDOW_SIZE = 60
 
 # Allow Next.js frontend to communicate with this API
 app.add_middleware(
@@ -37,14 +44,25 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        dead_connections = []
         for connection in self.active_connections:
             try:
                 await connection.send_text(json.dumps(message))
-            except RuntimeError:
-                pass # Ignore if the socket closed mid-broadcast
+            except Exception as e:
+                print(f"[WS CLEANUP] Removing dead connection: {e}")
+                dead_connections.append(connection)
+                try:
+                    await connection.close()
+                except Exception:
+                    pass
+
+        for dead in dead_connections:
+            if dead in self.active_connections:
+                self.active_connections.remove(dead)
 
 manager = ConnectionManager()
 
@@ -85,6 +103,7 @@ def mitigate_hijack(prefix: str):
 
 # Global state for automated defense
 AUTO_MITIGATION = True
+ml_detector = BGPAnomalyDetector()
 
 class MitigationToggle(BaseModel):
     enabled: bool
@@ -113,6 +132,32 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.post("/analyze")
 async def analyze_route(update: BGPUpdate):
+    # Feature extraction and statistical anomaly detection
+    current_time = time.time()
+    total_frequency = 0
+
+    for prefix in update.prefixes:
+        if prefix not in prefix_history:
+            prefix_history[prefix] = deque()
+
+        prefix_history[prefix].append(current_time)
+
+        while prefix_history[prefix] and prefix_history[prefix][0] < current_time - WINDOW_SIZE:
+            prefix_history[prefix].popleft()
+
+        total_frequency += len(prefix_history[prefix])
+
+    true_update_freq = total_frequency / len(update.prefixes) if update.prefixes else 0.0
+    path_length = len(update.as_path)
+
+    if not ml_detector.is_trained:
+        ml_detector.add_training_data(path_length, true_update_freq)
+
+    is_statistical_anomaly = ml_detector.predict(path_length, true_update_freq)
+    if is_statistical_anomaly:
+        print(f"[NEURO ALERT] ML Engine detected statistical anomaly (Freq: {true_update_freq}/min, Path: {path_length}) for {update.prefixes}")
+
+    # Symbolic graph verification and mitigation remain the source of truth
     with driver.session() as session:
         is_feasible = session.execute_read(verify_path_in_graph, update.as_path)
     
