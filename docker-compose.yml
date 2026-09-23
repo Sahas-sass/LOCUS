@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 1. The Graph Database
+  neo4j:
+    image: neo4j:latest
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=none
+    volumes:
+      - neo4j_data:/data
+
+  # 2. The FRRouting Gateway (Mitigation Target)
+  router-a:
+    image: frrouting/frr
+    privileged: true
+    sysctls:
+      - net.ipv4.ip_forward=1
+    command: >
+      sh -c "sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons && /usr/lib/frr/frrinit.sh start && tail -f /dev/null"
+
+  # 3. The Python Neuro-Symbolic Engine
+  locus-engine:
+    build: ./locus-engine
+    ports:
+      - "8000:8000"
+    depends_on:
+      - neo4j
+      - router-a
+
+  # 4. The Go Telemetry Daemon
+  locus-ingestion:
+    build: ./locus-ingestion
+    depends_on:
+      - locus-engine
+
+  # 5. The Next.js Dashboard
+  locus-dashboard:
+    build: ./locus-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - locus-engine
+
+volumes:
+  neo4j_data:
